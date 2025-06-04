@@ -1,0 +1,84 @@
+# filepath: c:\Users\juanc\Documents\Networking\Networking\telemedicina-rural\requirements.txt
+# Sistema de Telemedicina Rural Colombia - Dependencias de Python
+# Compatible con Python 3.11+
+
+# Core & Web Framework
+fastapi>=0.104.1                    # Modern, fast web framework for building APIs
+uvicorn[standard]>=0.24.0          # ASGI server for FastAPI, [standard] includes websockets and httptools
+pydantic>=2.5.0                    # Data validation and settings management using Python type annotations
+python-dotenv>=1.0.0               # For managing environment variables from .env files
+httpx>=0.25.2                      # Async HTTP client for server-to-server communication and testing FastAPI
+
+# Database & Cache
+sqlalchemy>=2.0.23                 # ORM for PostgreSQL (CMR) and SQLite (NAP)
+asyncpg>=0.29.0                    # Asynchronous PostgreSQL driver for SQLAlchemy (for CMR server)
+aioredis>=2.0.1                    # Asynchronous Redis client (for CMR server cache and message queues)
+
+# Networking & Packet Manipulation
+scapy>=2.5.0                       # For packet manipulation, network simulation and protocol analysis
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0   # For JWT token handling and cryptographic operations
+passlib[bcrypt]>=1.7.4             # Password hashing library with bcrypt support
+python-multipart>=0.0.6            # For handling form data and file uploads in FastAPI
+
+# File Handling & Compression
+pillow>=10.1.0                     # Python Imaging Library for medical image processing
+lz4>=4.3.2                         # Fast compression library for medical data compression
+
+# Simulation Environment
+# Note: Mininet is typically installed as a system package or within a VM.
+# The 'mininet' package here provides Python API bindings for simulation scripts.
+mininet>=2.3.1                     # Python API for Mininet network simulation (if pip-installable version available)
+matplotlib>=3.8.2                  # For generating plots and charts in simulation reports
+seaborn>=0.13.0                    # Statistical data visualization, enhancing matplotlib
+numpy>=1.26.2                      # Numerical computing library (required by matplotlib/seaborn)
+pandas>=2.1.4                      # Data manipulation and analysis (for simulation metrics)
+
+# System Monitoring & Utilities
+psutil>=5.9.6                      # For accessing system details and process utilities (monitoring in NAP/CMR)
+
+# Configuration & Environment
+pyyaml>=6.0.1                      # YAML parser for configuration files
+click>=8.1.7                       # For creating command-line interfaces
+
+# Async Programming Support
+asyncio-mqtt>=0.16.1               # Async MQTT client (for potential IoT device integration)
+
+# Testing Framework
+pytest>=7.4.3                      # Testing framework
+pytest-asyncio>=0.21.1             # For testing asyncio code with pytest
+pytest-mock>=3.12.0                # Mock object library for pytest
+coverage>=7.3.2                    # For measuring test coverage
+httpx>=0.25.2                      # Already listed above, also used for testing FastAPI endpoints
+
+# Development Tools (Linters, Formatters)
+black>=23.11.0                     # PEP 8 compliant code formatter
+flake8>=6.1.0                      # Linter (wrapper around PyFlakes, pycodestyle, McCabe)
+isort>=5.12.0                      # Import statement organizer
+mypy>=1.7.1                        # Static type checker for Python
+
+# Logging & Monitoring
+structlog>=23.2.0                  # Structured logging library for better log management
+
+# Development Server & Debugging
+watchfiles>=0.21.0                 # File watching for development auto-reload (dependency of uvicorn[standard])
+
+# Optional: Data Science & Analytics (for advanced reporting and analysis)
+scipy>=1.11.4                      # Scientific computing library
+scikit-learn>=1.3.2                # Machine learning library (for potential data analysis features)
+
+# Medical Data Standards (optional, for future DICOM/HL7 support)
+pydicom>=2.4.3                     # For handling DICOM medical imaging files
+python-hl7>=0.4.5                  # For HL7 healthcare data exchange format
+
+# Network Quality Assessment
+ping3>=4.0.4                       # For network connectivity testing and latency measurement
+speedtest-cli>=2.1.3               # For network bandwidth testing in rural areas
+
+# Background Task Processing
+celery>=5.3.4                      # Distributed task queue (for async processing of medical data)
+redis>=5.0.1                       # Redis client (required by celery and aioredis)
+
+# Email Notifications
+aiosmtplib>=3.0.1                  # Async SMTP client for email notifications
