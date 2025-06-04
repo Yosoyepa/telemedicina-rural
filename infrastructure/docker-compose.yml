@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  # Define tus servicios aquí, ej:
+  # nap-simulator:
+  #   build: ../nap-client # Ajusta la ruta si docker-compose.yml está en infrastructure/
+  #   networks:
+  #     - rural-network
+  # cmr-server:
+  #   build: ../cmr-server # Ajusta la ruta
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - rural-network
+  # network-simulator: # Ejemplo con Mininet
+  #   image: ubuntu:latest # O una imagen base para mininet
+  #   cap_add:
+  #     - NET_ADMIN
+  #   networks:
+  #     - rural-network
+
+# networks:
+#   rural-network:
