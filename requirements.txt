@@ -11,7 +11,7 @@ httpx                               # Async HTTP client for server-to-server com
 # Database & Cache
 sqlalchemy                          # ORM for PostgreSQL (CMR) and SQLite (NAP)
 asyncpg                             # Asynchronous PostgreSQL driver for SQLAlchemy (for CMR server)
-aioredis                            # Asynchronous Redis client (for CMR server cache and message queues)
+redis>=4.0.0                       # Redis client with async support (for CMR server cache and message queues)
 
 # Networking & Packet Manipulation
 scapy                               # For packet manipulation, network simulation and protocol analysis
@@ -67,7 +67,7 @@ scikit-learn                        # Machine learning library (for potential da
 
 # Medical Data Standards (optional, for future DICOM/HL7 support)
 pydicom                             # For handling DICOM medical imaging files
-python-hl7                          # For HL7 healthcare data exchange format
+hl7                                 # For HL7 healthcare data exchange format
 
 # Network Quality Assessment
 ping3                               # For network connectivity testing and latency measurement
