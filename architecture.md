@@ -61,9 +61,9 @@ Diseñar, implementar y evaluar un sistema de telemedicina basado en redes de co
                   docs/
                   tests/
                   ```
-                - **Estrategia de ramas:** Gitflow (`develop`, `main`, `feature/xxx`, `release/xxx`, `hotfix/xxx`).
+                - **Estrategia de ramas:** Un enfoque simple con `main` como rama principal y ramas de funcionalidad (`feature/xxx`). Gitflow es excesivo para un solo desarrollador.
                 - **Convenciones de commit:** Uso de Conventional Commits.
-                - **Hooks de pre-commit:** Configurar con `pre-commit` para ejecutar linters y formateadores (Black, Flake8, isort) automáticamente.
+                - **Hooks de pre-commit:** **(Prioridad Alta)** Configurar con `pre-commit` para ejecutar linters y formateadores (Black, Flake8, isort) automáticamente. Es tu primera línea de defensa para mantener la calidad del código sin esfuerzo.
             - **Docker y Docker Compose:**
                 - `Dockerfile` base para Python (considerar multi-stage builds para optimizar tamaño).
                 - `Dockerfile` para NAP (incluyendo dependencias de UI si es necesario y SQLite).
@@ -73,10 +73,13 @@ Diseñar, implementar y evaluar un sistema de telemedicina basado en redes de co
             - **Herramientas de Calidad y Testing:**
                 - Configuración de `pytest` y `pytest-asyncio`.
                 - Integración de `coverage.py` para reportes de cobertura.
-                - `tox.ini` para definir entornos de prueba aislados.
-            - **CI/CD Básico:**
-                - Pipeline (e.g., GitHub Actions, GitLab CI) que se active en push/PR a `develop` y `main`.
-                - Jobs: Linting, Formateo, Ejecución de Pruebas Unitarias y de Integración (inicialmente).
+            - **CI/CD Básico (Enfoque para un solo desarrollador):**
+                - **Objetivo:** Un pipeline simple (e.g., GitHub Actions) que actúa como tu red de seguridad personal, no como una herramienta de coordinación de equipo.
+                - **Activación:** Se activa en cada `push` a cualquier rama.
+                - **Jobs Esenciales:**
+                    1.  **Calidad de Código:** Ejecución de linters y formateadores (Black, Flake8, isort) para asegurar consistencia.
+                    2.  **Pruebas Unitarias:** Ejecución de `pytest` para garantizar que los cambios no rompen funcionalidades existentes.
+                - **Jobs Opcionales/Manuales:** La ejecución de la simulación de red completa será un paso manual o bajo demanda, no en cada commit, para agilizar el ciclo de desarrollo.
         - **Entregable Específico:** Repositorio Git funcional con estructura, Dockerfiles, `docker-compose.yml` y pipeline CI/CD básico operativo.
 
 ---
