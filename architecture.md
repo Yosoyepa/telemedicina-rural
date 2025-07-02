@@ -1,0 +1,477 @@
+# Plan Detallado de Desarrollo: Sistema de Telemedicina Rural Colombia
+
+## Enfoque Técnico Profundo para Arquitectos y Desarrolladores
+
+---
+## 📋 Introducción
+
+Este documento expande el plan de desarrollo original para el Sistema de Telemedicina Rural en Colombia. El objetivo es proporcionar una guía técnica detallada, paso a paso, para cada tarea, asumiendo el rol de un arquitecto y desarrollador senior. Se definirán servicios, funciones, estructuras de datos, posibles endpoints y las interacciones clave entre componentes. La problemática central es la conectividad intermitente y de bajo ancho de banda en zonas rurales, lo que hace que el mecanismo de "**Store-and-Forward**" y un protocolo de comunicación adaptable sean críticos.
+
+---
+## 🎯 Objetivos del Proyecto (Recordatorio)
+**Objetivo General**
+
+Diseñar, implementar y evaluar un sistema de telemedicina basado en redes de comunicación adaptativas, capaz de operar eficazmente sobre infraestructuras de red con conectividad intermitente o de bajo ancho de banda.
+
+**Objetivos Específicos**
+- **Acceso a Servicios Médicos:** Facilitar el acceso a diagnóstico y consulta.
+- **Reducción de Inequidad Sanitaria:** Disminuir la brecha campo-ciudad.
+- **Validación Técnica:** Prototipar y validar un mecanismo de comunicación resiliente.
+
+---
+## 🏗️ Arquitectura del Sistema (Recordatorio)
+**Componentes Principales**
+- **NAP (Nodo de Atención Primaria):** Cliente ligero, captura y transmite datos.
+- **CMR (Centro Médico Remoto):** Servidor central, recibe, procesa y almacena.
+- **Protocolo Store-and-Forward (S&F):** Esencial para la resiliencia.
+- **Simulador de Red Rural:** Para pruebas en condiciones adversas.
+
+**Stack Tecnológico (Recordatorio)**
+- **Lenguaje:** Python 3.11+
+- **Framework Backend:** FastAPI
+- **Base de Datos:** PostgreSQL (CMR), SQLite (NAP)
+- **Networking:** AsyncIO, Sockets nativos, aiohttp
+- **Simulación:** Mininet, netem, Scapy
+- **Contenedorización:** Docker, Docker Compose
+- **Testing:** pytest, pytest-asyncio
+
+---
+## 📅 Plan de Desarrollo Detallado
+
+### Fase 0: Preparación y Configuración 
+- **Objetivo:** Establecer una base sólida de desarrollo y comprensión del contexto.
+- **Actividades Principales y Detalles Técnicos:**
+    - **Análisis del Contexto Rural Colombiano:**
+        - **Qué hacer:** Investigar y documentar las condiciones de conectividad (tipos de conexión predominantes: satelital, radioenlaces, 3G/4G irregular), infraestructura eléctrica, y capacidades técnicas del personal local.
+        - **Cómo:**
+            - Revisar estudios del MinTIC sobre brecha digital rural.
+            - Analizar datos de operadores sobre cobertura y calidad de servicio en zonas objetivo.
+            - Considerar el impacto del Decreto 0351/2025 (Plan Nacional de Salud Rural) en los requisitos del sistema.
+        - **Entregable Específico:** Documento de "**Caracterización de Infraestructura y Conectividad Rural Colombiana**" con perfiles de red tipo.
+    - **Configuración del Entorno de Desarrollo:**
+        - **Qué hacer:** Preparar todas las herramientas y la estructura base del proyecto.
+        - **Cómo:**
+            - **Repositorio Git:**
+                - **Estructura de directorios:**
+                  ```
+                  nap-client/
+                  cmr-server/
+                  shared/
+                  simulation/
+                  docs/
+                  tests/
+                  ```
+                - **Estrategia de ramas:** Gitflow (`develop`, `main`, `feature/xxx`, `release/xxx`, `hotfix/xxx`).
+                - **Convenciones de commit:** Uso de Conventional Commits.
+                - **Hooks de pre-commit:** Configurar con `pre-commit` para ejecutar linters y formateadores (Black, Flake8, isort) automáticamente.
+            - **Docker y Docker Compose:**
+                - `Dockerfile` base para Python (considerar multi-stage builds para optimizar tamaño).
+                - `Dockerfile` para NAP (incluyendo dependencias de UI si es necesario y SQLite).
+                - `Dockerfile` para CMR (incluyendo FastAPI, PostgreSQL client, Redis client).
+                - `docker-compose.yml` para desarrollo local: servicios para NAP, CMR, PostgreSQL, Redis, y el simulador de red (Mininet).
+                - Variables de entorno (`.env` files) para configuración.
+            - **Herramientas de Calidad y Testing:**
+                - Configuración de `pytest` y `pytest-asyncio`.
+                - Integración de `coverage.py` para reportes de cobertura.
+                - `tox.ini` para definir entornos de prueba aislados.
+            - **CI/CD Básico:**
+                - Pipeline (e.g., GitHub Actions, GitLab CI) que se active en push/PR a `develop` y `main`.
+                - Jobs: Linting, Formateo, Ejecución de Pruebas Unitarias y de Integración (inicialmente).
+        - **Entregable Específico:** Repositorio Git funcional con estructura, Dockerfiles, `docker-compose.yml` y pipeline CI/CD básico operativo.
+
+---
+### Fase 1: Desarrollo de Componentes Compartidos
+- **Objetivo:** Implementar librerías y protocolos base que serán utilizados tanto por el NAP como por el CMR.
+- **1. Infraestructura Base (`shared/`)**
+    - **`shared/utils/logging_config.py`:**
+        - **Qué hacer:** Módulo para configurar un logging estructurado y centralizado.
+        - **Cómo:**
+            - Función `setup_logging(service_name: str, log_level: str = "INFO", structured: bool = True) -> logging.Logger`.
+            - Utilizar `python-json-logger` si se opta por logs estructurados en JSON para facilitar el análisis por herramientas como ELK Stack o similar en un futuro.
+            - Configurar handlers para consola y, opcionalmente, para archivos con rotación.
+    - **`shared/utils/config_loader.py`:**
+        - **Qué hacer:** Módulo para cargar configuraciones de manera flexible.
+        - **Cómo:**
+            - Clase `AppConfig` utilizando Pydantic para validación y tipado.
+            - Carga desde variables de entorno (prioridad alta) y archivos `.env` (prioridad baja).
+            - Secciones de configuración: `database_nap`, `database_cmr`, `network_nap`, `network_cmr`, `redis_config`.
+    - **`shared/utils/network_utils.py`:**
+        - **Qué hacer:** Utilidades de red comunes.
+        - **Cómo:**
+            - Función `async def check_host_port_availability(host: str, port: int) -> bool`.
+            - Función `get_local_ip_address() -> str`.
+            - Considerar funciones para estimar ancho de banda básico o latencia si no se usa una librería más compleja (e.g., ping simple).
+    - **`shared/protocols/message_formats/`:**
+        - **Qué hacer:** Definir las estructuras de los mensajes intercambiados.
+        - **Cómo:** Usar Pydantic para definir modelos de datos.
+            - **`medical_message.py`:**
+                - `MedicalDataPayload(BaseModel)`: `message_id: UUID`, `patient_id: str`, `nap_id: str`, `timestamp_capture: datetime`, `priority: int` (e.g., 1-CRITICAL, 2-HIGH, 3-NORMAL), `data_type: str` (e.g., "ECG", "SpO2", "BloodPressure"), `data: Dict | List | bytes` (el contenido médico real), `metadata: Optional[Dict]`.
+                - **Métodos:** `serialize_json() -> str`, `serialize_bytes() -> bytes` (usando `msgpack` o `protobuf` para eficiencia si es necesario), `static deserialize_json(data_str: str)`, `static deserialize_bytes(data_bytes: bytes)`.
+            - **`control_message.py`:**
+                - `AckMessage(BaseModel)`: `message_id_acked: UUID`, `status: str` ("RECEIVED", "PROCESSED"), `timestamp: datetime`.
+                - `NackMessage(BaseModel)`: `message_id_nacked: UUID`, `reason: str`, `timestamp: datetime`.
+                - `HeartbeatMessage(BaseModel)`: `nap_id: str`, `timestamp: datetime`, `status: str` ("ALIVE").
+            - **`priority_message.py`:**
+                - `MessagePriority(IntEnum)`: `CRITICAL = 1`, `HIGH = 2`, `NORMAL = 3`, `LOW = 4`.
+                - Funciones de utilidad para asignar/interpretar prioridades.
+    - **`shared/protocols/compression/medical_data_compressor.py`:**
+        - **Qué hacer:** Implementar compresión/descompresión de datos médicos.
+        - **Cómo:**
+            - Interfaz `AbstractCompressor(ABC)`: `compress(data: bytes) -> bytes`, `decompress(data: bytes) -> bytes`.
+            - Implementaciones: `ZlibCompressor(AbstractCompressor)`, `LZMACompressor(AbstractCompressor)`.
+            - Considerar una factoría `CompressorFactory.get_compressor(algorithm_name: str = "zlib") -> AbstractCompressor`.
+            - La elección del algoritmo puede depender del tipo de dato médico y el perfil de red.
+- **2. Protocolo de Comunicación Resiliente (`shared/protocols/reliable_udp/`)**
+    - **Objetivo:** Implementar un protocolo sobre UDP que ofrezca garantías de entrega.
+    - **`packet.py`:**
+        - **Qué hacer:** Definir la estructura del paquete UDP confiable.
+        - **Cómo:**
+            - `ReliableUDPPacketHeader(BaseModel)`: `seq_num: int`, `ack_num: int`, `flags: int` (combinación de `SYN`, `ACK`, `FIN`, `DATA`, `KEEPALIVE`, `SACK_PERMITTED`, `SACK`), `window_size: int`, `checksum: int`.
+            - `ReliableUDPPacket(BaseModel)`: `header: ReliableUDPPacketHeader`, `payload: Optional[bytes]`.
+            - Métodos de serialización/deserialización (e.g., a/desde bytes usando `struct` para el header y concatenando payload).
+            - Funciones para calcular/validar checksum (e.g., Fletcher's checksum o CRC32).
+    - **`sequence_manager.py`:**
+        - **Qué hacer:** Gestionar números de secuencia y ACK.
+        - **Cómo:**
+            - Clase `SequenceManager`: `current_send_seq`, `expected_ack_seq`, `expected_receive_seq`.
+            - **Métodos:** `get_next_send_seq() -> int`, `update_on_ack(ack_num: int)`, `is_expected_packet(seq_num: int) -> bool`.
+    - **`acknowledgment.py`:**
+        - **Qué hacer:** Manejar la lógica de envío y recepción de ACKs.
+        - **Cómo:**
+            - Clase `AckHandler`:
+                - `generate_ack_packet(received_seq_num: int, current_window_size: int) -> ReliableUDPPacket`.
+                - `process_incoming_ack(packet: ReliableUDPPacket, retransmission_manager: 'RetransmissionManager', window_manager: 'WindowManager')`.
+                - Considerar SACK (Selective Acknowledgment) si el tiempo lo permite, para mejorar eficiencia en redes con pérdidas esporádicas.
+    - **`retransmission_handler.py`:**
+        - **Qué hacer:** Gestionar la retransmisión de paquetes perdidos.
+        - **Cómo:**
+            - Clase `RetransmissionManager`:
+                - `sent_packets_buffer: Dict[int, Tuple[ReliableUDPPacket, float_timestamp, int_retry_count]]`.
+                - `rto_calculator: RTOCalculator` (implementando RTT promedio, desviación, y cálculo de RTO, e.g., Jacobson/Karels).
+                - **Métodos:** `on_packet_sent(packet: ReliableUDPPacket)`, `on_ack_received(ack_num: int)` (elimina de buffer), `get_packets_for_retransmission() -> List[ReliableUDPPacket]` (verifica timeouts).
+                - Implementar un temporizador por paquete o un temporizador global que revise el buffer.
+    - **`window_manager.py`:**
+        - **Qué hacer:** Implementar control de flujo mediante ventana deslizante.
+        - **Cómo:**
+            - Clase `SlidingWindowManager`:
+                - `send_window_size`, `receive_window_size`, `last_byte_sent`, `last_byte_acked`, `congestion_control_algorithm` (e.g., AIMD - Additive Increase Multiplicative Decrease).
+                - **Métodos:** `can_send_more_data(data_size: int) -> bool`, `update_window_on_ack(ack_num: int)`, `update_window_on_loss()`, `get_advertised_window() -> int`.
+    - **`reliable_udp_socket.py` (Opcional, encapsulador):**
+        - **Qué hacer:** Una clase que una todos los componentes anteriores para ofrecer una API similar a un socket.
+        - **Cómo:**
+            - Clase `ReliableUDPSocket(host, port, is_server=False)`:
+                - `async def connect()` (para cliente, maneja handshake SYN/SYN-ACK).
+                - `async def listen()` (para servidor).
+                - `async def send(data: bytes) -> bool`.
+                - `async def recv() -> bytes`.
+                - `async def close()` (maneja FIN/FIN-ACK).
+                - Internamente usa `asyncio.DatagramProtocol`.
+- **3. Módulo de Condiciones Rurales Colombianas (`shared/rural_conditions/`)**
+    - **Qué hacer:** Definir perfiles y datos para la simulación.
+    - **Cómo:**
+        - **`connectivity_profiles.py`:**
+            - Lista de `RuralProfile(BaseModel)`: `name: str`, `avg_bandwidth_kbps: float`, `min_bandwidth_kbps: float`, `max_bandwidth_kbps: float`, `avg_latency_ms: int`, `jitter_ms: int`, `packet_loss_percentage: float`, `intermittency: Optional[IntermittencyProfile]`.
+            - `IntermittencyProfile(BaseModel)`: `type: str` ("periodic", "random"), `down_duration_avg_s: int`, `up_duration_avg_s: int`.
+        - Estos perfiles serán usados por el simulador de red.
+- **Entregables Fase 1:** Librerías compartidas funcionales y probadas unitariamente. Protocolo UDP confiable con implementación base de secuencia, ACK, retransmisión y ventana.
+
+---
+### Fase 2: Desarrollo del Cliente NAP
+- **Objetivo:** Implementar el Nodo de Atención Primaria con lógica de Store-and-Forward y transmisión adaptativa.
+- **1. Core del Cliente (`nap-client/src/`) (Semana 4)**
+    - **`domain/entities/`:**
+        - `MedicalDataRecord(BaseModel)`: `id: UUID` (generado en NAP), `patient_id: str`, `capture_timestamp: datetime`, `data_type: str`, `raw_data_payload: bytes` (datos médicos serializados y posiblemente pre-comprimidos), `priority: MessagePriority`, `status: str` ("PENDING_QUEUE", "QUEUED", "SENDING", "SENT_UNCONFIRMED", "CONFIRMED_DELIVERY", "FAILED_MAX_RETRIES"), `creation_timestamp: datetime`, `last_attempt_timestamp: Optional[datetime]`, `retry_count: int = 0`.
+    - **`domain/repositories/`:**
+        - `AbstractMedicalDataRepository(ABC)`:
+            - `async def save(record: MedicalDataRecord)`.
+            - `async def get_by_id(id: UUID) -> Optional[MedicalDataRecord]`.
+            - `async def get_pending_records(limit: int = 10) -> List[MedicalDataRecord]` (ordenados por prioridad y antigüedad).
+            - `async def update_status(id: UUID, status: str, last_attempt_timestamp: Optional[datetime] = None, increment_retry: bool = False)`.
+            - `async def delete(id: UUID)`.
+        - `AbstractTransmissionQueueRepository(ABC)`: (Podría ser el mismo que `MedicalDataRepository` si la "cola" es solo una vista de los registros con estado "QUEUED"). Si es una cola separada (e.g., en memoria con persistencia):
+            - `async def enqueue(record_id: UUID, priority: MessagePriority)`.
+            - `async def dequeue() -> Optional[UUID]`.
+            - `async def peek() -> Optional[UUID]`.
+            - `async def get_all_ids_by_priority() -> List[UUID]`.
+    - **`application/use_cases/`:**
+        - `CaptureMedicalDataUseCase(data_repo: AbstractMedicalDataRepository)`:
+            - `async def execute(patient_id: str, data_type: str, raw_data: Any, priority: MessagePriority) -> MedicalDataRecord`: Crea `MedicalDataRecord`, lo guarda con estado `PENDING_QUEUE` o `QUEUED` directamente.
+        - `ProcessTransmissionQueueUseCase(data_repo: AbstractMedicalDataRepository, transmission_service: 'AdaptiveTransmissionService')`:
+            - `async def execute_once()`: Obtiene el siguiente `MedicalDataRecord` de alta prioridad de `data_repo` (estado `QUEUED` o `FAILED_MAX_RETRIES` < umbral). Intenta enviarlo usando `transmission_service`. Actualiza estado.
+            - Esta es la función que se ejecutará periódicamente o en un bucle.
+    - **`application/services/`:**
+        - `StoreAndForwardService(data_repo: AbstractMedicalDataRepository, transmission_service: 'AdaptiveTransmissionService', config: AppConfig)`:
+            - `task_process_queue: Optional[asyncio.Task] = None`.
+            - `async def start_processing()`: Inicia un bucle `asyncio` que llama a `ProcessTransmissionQueueUseCase.execute_once()` a intervalos configurables (e.g., cada X segundos) o cuando hay conectividad.
+            - `async def stop_processing()`: Cancela la tarea.
+            - `async def force_process_item(record_id: UUID)`: Intenta enviar un ítem específico.
+        - `PriorityManagerService`: (Puede ser implícito en las consultas al `MedicalDataRepository` si se ordena por prioridad).
+        - `AdaptiveTransmissionService(network_monitor: 'NetworkMonitor', protocol_selector: 'AdaptiveProtocolSelector', tcp_adapter: 'TCPAdapter', reliable_udp_adapter: 'ReliableUDPAdapter', compressor: AbstractCompressor, data_repo: AbstractMedicalDataRepository)`:
+            - `async def send_medical_data(record: MedicalDataRecord) -> bool` (éxito de envío y confirmación):
+                - Obtiene `record.raw_data_payload`.
+                - Comprime los datos: `compressed_payload = compressor.compress(record.raw_data_payload)`.
+                - Crea el `MedicalDataPayload` (de shared) con `compressed_payload`.
+                - Serializa: `message_bytes = medical_payload.serialize_bytes()`.
+                - Monitorea red: `current_conditions = await network_monitor.get_current_conditions()`.
+                - Selecciona protocolo: `protocol_type = protocol_selector.select_protocol(current_conditions, record.priority)`.
+                - Actualiza `record` a `SENDING` en `data_repo`.
+                - Si `protocol_type == "TCP"`: `success = await tcp_adapter.send_and_await_ack(message_bytes, medical_payload.message_id)`.
+                - Si `protocol_type == "RUDP"`: `success = await reliable_udp_adapter.send_and_await_ack(message_bytes, medical_payload.message_id)`.
+                - Si `success`: Actualiza `record` a `CONFIRMED_DELIVERY`. Sino, `FAILED_MAX_RETRIES` (o similar) y se reintentará.
+                - Retorna `success`.
+- **2. Infraestructura y Adaptadores (`nap-client/src/infrastructure/`)**
+    - **`network/tcp_adapter.py`:**
+        - Clase `TCPAdapter(host: str, port: int, config: AppConfig)`:
+            - `async def connect()`: Establece conexión TCP.
+            - `async def send_data(data: bytes) -> bool`: Envía datos.
+            - `async def receive_ack(expected_message_id: UUID, timeout: float) -> bool`: Espera un `AckMessage`.
+            - `async def send_and_await_ack(data: bytes, message_id: UUID) -> bool`: Combina envío y espera de ACK.
+            - `async def disconnect()`.
+            - Usa `asyncio.open_connection`.
+    - **`network/reliable_udp_adapter.py`:**
+        - Clase `ReliableUDPAdapter(host: str, port: int, config: AppConfig)`:
+            - Internamente usa una instancia de `ReliableUDPSocket` (o su lógica).
+            - `async def send_data(data: bytes) -> bool`: Envía usando el protocolo RUDP.
+            - `async def await_ack(expected_message_id: UUID, timeout: float) -> bool`: Espera confirmación a nivel de aplicación (que el RUDP haya confirmado la entrega del paquete que contenía el ACK del CMR).
+            - `async def send_and_await_ack(data: bytes, message_id: UUID) -> bool`.
+    - **`network/network_monitor.py`:**
+        - Clase `NetworkMonitor(config: AppConfig)`:
+            - `current_status: NetworkStatus(BaseModel)` con `connected: bool`, `latency_ms: Optional[float]`, `packet_loss_estimate: Optional[float]`, `bandwidth_kbps_estimate: Optional[float]`.
+            - `async def get_current_conditions() -> NetworkStatus`:
+                - Intenta un ping simple (ICMP o TCP echo a un host conocido/CMR).
+                - Mide tiempo de conexión/respuesta.
+                - Puede usar `pythonping` o `async_ping`.
+                - Mantiene un estado interno que se actualiza periódicamente.
+            - `async def start_monitoring()`, `async def stop_monitoring()`.
+    - **`network/adaptive_protocol_selector.py`:**
+        - Clase `AdaptiveProtocolSelector(config: AppConfig)`:
+            - `def select_protocol(network_status: NetworkStatus, priority: MessagePriority) -> str` ("TCP" | "RUDP"):
+                - **Lógica:**
+                    - Si `not network_status.connected`: Error, no se puede enviar.
+                    - Si `network_status.packet_loss_estimate > config.rudp_loss_threshold` o `network_status.latency_ms > config.rudp_latency_threshold`: Usar "RUDP".
+                    - Si `priority == MessagePriority.CRITICAL` y red inestable: Usar "RUDP".
+                    - Por defecto: "TCP" (si es más simple o configurado así).
+    - **`persistence/sqlite_repository.py`:**
+        - Clase `SQLiteMedicalDataRepository(AbstractMedicalDataRepository)`:
+            - Usa `aiosqlite`.
+            - `db_path: str`.
+            - Método `async def _init_db()`: Crea tablas (`medical_records`) si no existen.
+            - **Campos en tabla `medical_records`**: `id TEXT PRIMARY KEY`, `patient_id TEXT`, `capture_timestamp TEXT`, `data_type TEXT`, `raw_data_payload BLOB`, `priority INTEGER`, `status TEXT`, `creation_timestamp TEXT`, `last_attempt_timestamp TEXT`, `retry_count INTEGER`.
+            - Implementa todos los métodos de la interfaz.
+    - **`persistence/file_storage.py` (Opcional, si hay archivos grandes):**
+        - Clase `LocalFileStorage`:
+            - `async def save_large_data(record_id: UUID, data: bytes) -> str` (ruta_archivo).
+            - `async def load_large_data(file_path: str) -> bytes`.
+            - La `MedicalDataRecord.raw_data_payload` almacenaría la ruta al archivo en este caso.
+    - **`ui/cli_interface.py`:**
+        - Usa `typer` o `click` para una CLI amigable.
+        - **Comandos:**
+            - `nap-client capture --patient-id <id> --type <ECG|SpO2> --priority <1-4> --data-file <ruta_o_direct_input>`
+            - `nap-client queue status`
+            - `nap-client queue process [--force]`
+            - `nap-client network status`
+            - `nap-client config show`
+    - **`ui/medical_data_simulator.py` (Para pruebas):**
+        - Funciones para generar datos médicos simulados: `generate_ecg_sample(duration_s, sample_rate_hz) -> List[float]`, `generate_spo2_sample() -> int`.
+        - Puede ser invocado por la CLI para generar archivos de datos.
+- **Entregables Fase 2:** Cliente NAP funcional con Store-and-Forward, priorización básica, capacidad de transmisión adaptativa (selector de protocolo base), persistencia en SQLite y una CLI para interacción y pruebas.
+
+---
+### Fase 3: Desarrollo del Servidor CMR
+- **Objetivo:** Implementar el Centro Médico Remoto para recibir, procesar y almacenar datos.
+- **1. Core del Servidor (`cmr-server/src/`)**
+    - **`domain/entities/`:**
+        - `ReceivedMedicalData(BaseModel)`: Similar a `MedicalDataPayload` de `shared`, pero con metadatos del servidor como `received_timestamp: datetime`, `source_nap_id: str`.
+        - `MedicalRecordEntry(BaseModel)`: `entry_id: UUID`, `nap_message_id: UUID`, `patient_id: str`, `received_timestamp: datetime`, `capture_timestamp: datetime`, `data_type: str`, `processed_data: Dict | List` (datos decodificados y validados), `priority: MessagePriority`.
+        - `PatientMedicalRecord(BaseModel)`: `patient_id: str`, `entries: List[MedicalRecordEntry]`, `diagnoses: List[Diagnosis]`.
+        - `Diagnosis(BaseModel)`: `diagnosis_id: UUID`, `specialist_id: str`, `timestamp: datetime`, `notes: str`.
+    - **`domain/repositories/`:**
+        - `AbstractMedicalRecordRepository(ABC)`:
+            - `async def add_medical_data_entry(entry: MedicalRecordEntry)`.
+            - `async def get_record_for_patient(patient_id: str) -> Optional[PatientMedicalRecord]`.
+            - `async def add_diagnosis_to_patient(patient_id: str, diagnosis: Diagnosis)`.
+    - **`application/use_cases/`:**
+        - `ReceiveMedicalDataUseCase(record_repo: AbstractMedicalRecordRepository, validation_service: 'DataValidationService', notification_service: 'NotificationService', compressor: AbstractCompressor)`:
+            - `async def execute(raw_message_bytes: bytes, source_nap_id: str) -> Tuple[bool, Optional[str]]` (success, error_message):
+                - Deserializa `raw_message_bytes` a `MedicalDataPayload` (de `shared`).
+                - Valida con `validation_service`. Si falla, retorna (`False`, "Validation Error").
+                - Descomprime `medical_payload.data` usando `compressor`.
+                - Crea `MedicalRecordEntry`.
+                - Guarda en `record_repo`.
+                - Si `entry.priority == MessagePriority.CRITICAL`, llama a `notification_service.notify_critical_data_received(entry)`.
+                - Retorna (`True`, `None`).
+        - `ProcessDiagnosisRequestUseCase(record_repo: AbstractMedicalRecordRepository)`: (Simplificado para este scope)
+            - `async def add_diagnosis(patient_id: str, specialist_id: str, notes: str) -> Diagnosis`.
+        - `GeneratePriorityAlertsUseCase(notification_service: 'NotificationService')`:
+            - Esta lógica está más integrada en `ReceiveMedicalDataUseCase` para alertas inmediatas. Podría haber un servicio batch que revise datos no atendidos.
+    - **`application/services/`:**
+        - `DataValidationService()`:
+            - `def validate_medical_payload(payload: MedicalDataPayload) -> List[str]` (lista de errores): Verifica campos requeridos, tipos, rangos lógicos para ciertos `data_type`.
+        - `NotificationService(config: AppConfig, notification_gateways: List[AbstractNotificationGateway])`:
+            - `async def notify_critical_data_received(entry: MedicalRecordEntry)`: Envía notificaciones (e.g., email, SMS, WebSocket) a personal relevante.
+            - `async def send_general_alert(message: str, target_group: str)`.
+        - `AnalyticsService(record_repo: AbstractMedicalRecordRepository)`:
+            - `async def get_reception_stats_last_hour() -> Dict`.
+            - `async def get_patient_data_summary(patient_id: str) -> Dict`.
+- **2. API y Comunicaciones (`cmr-server/src/infrastructure/`)**
+    - **`network/socket_servers.py`:**
+        - **`tcp_server.py`:**
+            - Función `async def handle_tcp_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, receive_use_case: ReceiveMedicalDataUseCase)`:
+                - Lee datos del `reader`.
+                - Pasa a `receive_use_case.execute()`.
+                - Crea `AckMessage` o `NackMessage` (de `shared`).
+                - Envía respuesta por `writer`.
+            - Función `async def start_tcp_server(host: str, port: int, receive_use_case: ReceiveMedicalDataUseCase)`: Usa `asyncio.start_server`.
+            - **Endpoint Lógico:** `tcp://<CMR_IP>:<TCP_PORT>`
+        - **`reliable_udp_server.py`:**
+            - Clase `CMRReliableUDPProtocol(asyncio.DatagramProtocol)`:
+                - Usa la instancia de `ReliableUDPSocket` o su lógica interna.
+                - En `datagram_received`, procesa el paquete RUDP. Si es un paquete de DATOS completo:
+                    - Pasa a `receive_use_case.execute()`.
+                    - Prepara `AckMessage` o `NackMessage` como payload para la respuesta RUDP.
+            - Función `async def start_reliable_udp_server(host: str, port: int, receive_use_case: ReceiveMedicalDataUseCase)`: Crea y configura el endpoint de datagrama.
+            - **Endpoint Lógico:** `rudp://<CMR_IP>:<RUDP_PORT>`
+    - **`network/api_server.py` (FastAPI):**
+        - Archivo principal de FastAPI (`main.py`).
+        - Routers separados: `patients_router.py`, `diagnostics_router.py`, `analytics_router.py`.
+        - Inyección de dependencias (Use Cases, Repositories) usando `fastapi.Depends`.
+        - **Endpoints REST (Ejemplos):**
+            - `POST /api/v1/medical_data/upload_http`: (Alternativa HTTP para NAPs, menos resiliente pero más simple si la red lo permite). Recibe `MedicalDataPayload`. Llama a `ReceiveMedicalDataUseCase`.
+                - **Request Body:** `MedicalDataPayload` (JSON).
+                - **Response:** 200 OK con `AckMessage` o 400/500 con `NackMessage`.
+            - `GET /api/v1/patients/{patient_id}/records`: Retorna `PatientMedicalRecord`. Requiere autenticación/autorización.
+            - `POST /api/v1/patients/{patient_id}/diagnoses`: Recibe datos de diagnóstico. Llama a `ProcessDiagnosisRequestUseCase.add_diagnosis`.
+                - **Request Body:** `{"specialist_id": "...", "notes": "..."}`.
+                - **Response:** 201 Created con `Diagnosis`.
+            - `GET /api/v1/system/health`: Endpoint de health check.
+        - **Autenticación:** Implementar OAuth2 con JWT para proteger los endpoints de la API que exponen datos sensibles.
+    - **`network/websocket_server.py`:**
+        - Integrado con FastAPI.
+        - `async def websocket_endpoint_alerts(websocket: WebSocket, token: str = Depends(oauth2_scheme))`:
+            - Autentica el WebSocket.
+            - Mantiene la conexión y envía mensajes cuando `NotificationService` emite una alerta para el grupo/usuario relevante.
+        - **Endpoint Lógico:** `ws://<CMR_IP>:<API_PORT>/ws/alerts`
+    - **`persistence/postgresql_adapter.py`:**
+        - Clase `PostgresMedicalRecordRepository(AbstractMedicalRecordRepository)`:
+            - Usa `asyncpg` directamente o con SQLAlchemy Async (recomendado).
+            - **Tablas:**
+                - `patients` (`patient_id TEXT PRIMARY KEY`, `name TEXT`, ...)
+                - `medical_record_entries` (`entry_id UUID PRIMARY KEY`, `nap_message_id UUID`, `patient_id TEXT REFERENCES patients`, `received_timestamp TIMESTAMPTZ`, `capture_timestamp TIMESTAMPTZ`, `data_type TEXT`, `processed_data JSONB`, `priority INTEGER`)
+                - `diagnoses` (`diagnosis_id UUID PRIMARY KEY`, `patient_id TEXT REFERENCES patients`, `specialist_id TEXT`, `timestamp TIMESTAMPTZ`, `notes TEXT`)
+            - Implementa todos los métodos de la interfaz.
+    - **`persistence/redis_cache.py`:**
+        - Clase `RedisCacheService`:
+            - Usa `redis-py` (con soporte `async`).
+            - `async def get_value(key: str) -> Optional[str]`.
+            - `async def set_value(key: str, value: str, ttl_seconds: int)`.
+            - Para caching de sesiones de API, resultados de queries frecuentes, etc.
+    - **`external/notification_gateways.py`:**
+        - `AbstractNotificationGateway(ABC)`: `async def send(recipient: str, message: str, subject: Optional[str]=None)`.
+        - `EmailGateway(AbstractNotificationGateway)`: Usa `smtplib` o una librería como `emails`.
+        - `SmsGateway(AbstractNotificationGateway)`: (Mock o integración con Twilio/Vonage si hay presupuesto).
+        - `WebSocketGateway(AbstractNotificationGateway)`: Interactúa con el `websocket_server.py` para empujar notificaciones a clientes conectados.
+- **Entregables Fase 3:** Servidor CMR funcional con endpoints TCP y RUDP para recepción de datos, API REST básica para gestión y consulta, y sistema de notificaciones/alertas inicial. Persistencia en PostgreSQL.
+
+---
+### Fase 4: Simulación y Pruebas Integrales
+- **Objetivo:** Validar el sistema completo bajo condiciones de red rural simuladas.
+- **1. Entorno de Simulación (`simulation/`)**
+    - **`network_simulator/rural_colombia_topology.py`:**
+        - **Qué hacer:** Script Python que usa la API de Mininet para crear topologías de red.
+        - **Cómo:**
+            - Función `create_rural_topology(profile_name: str, rural_profiles: List[RuralProfile]) -> Mininet`.
+            - Define Nodos: `NAP1 = net.addHost('nap1')`, `CMR = net.addHost('cmr')`, `Switch = net.addSwitch('s1')`.
+            - Define Enlaces: `net.addLink(NAP1, Switch, bw=profile.avg_bandwidth_kbps/1000, delay=f'{profile.avg_latency_ms}ms', loss=profile.packet_loss_percentage)`.
+            - Permite parametrizar la topología (N NAPs, 1 CMR).
+    - **`network_simulator/connectivity_patterns.py`:**
+        - **Qué hacer:** Scripts para aplicar dinámicamente cambios en las condiciones de red.
+        - **Cómo:**
+            - Función `apply_intermittency(net: Mininet, link_node1: str, link_node2: str, profile: IntermittencyProfile)`:
+                - Usa `tc` (a través de `link.config()` en Mininet) para simular la caída y restauración del enlace periódicamente o aleatoriamente.
+                - Ejemplo: `link.config(loss=100)` para simular caída, `link.config(loss=original_loss)` para restaurar.
+            - Función `change_bandwidth_latency(net: Mininet, link_node1: str, link_node2: str, new_bw_kbps: float, new_latency_ms: int)`.
+    - **`scenarios/`:**
+        - **Qué hacer:** Scripts que orquestan una simulación completa para un escenario dado.
+        - **Cómo:**
+            - **`run_amazon_region_scenario.py`:**
+                - Carga el perfil "Amazonas" de `connectivity_profiles.py`.
+                - Crea la topología con `rural_colombia_topology.py`.
+                - Inicia los contenedores Docker del NAP y CMR dentro de los nodos de Mininet (usando `host.cmd('docker run ...')`).
+                - Inicia el `medical_data_simulator.py` en el NAP para generar y enviar datos.
+                - Aplica patrones de intermitencia y cambios de ancho de banda con `connectivity_patterns.py`.
+                - Ejecuta durante un tiempo definido, recolectando logs.
+                - Detiene los contenedores y la red.
+            - Otros escenarios: `andes_mountain_scenario.py`, `emergency_scenario.py` (con alta prioridad de datos).
+- **2. Evaluación de Rendimiento (`simulation/`)**
+    - **`metrics/performance_collector.py`:**
+        - **Qué hacer:** Scripts o modificaciones en NAP/CMR para registrar métricas detalladas.
+        - **Cómo:**
+            - **NAP:** Loguear (`message_id`, `capture_time`, `queue_time`, `send_attempt_time`, `protocol_used`, `ack_receive_time`, `final_status`, `num_retries`).
+            - **CMR:** Loguear (`message_id`, `receive_time`, `processing_complete_time`, `nap_source_id`).
+            - Estos logs deben ser fácilmente parseables (e.g., CSV o JSON por línea).
+    - **`metrics/analyzers/`:**
+        - Scripts Python para procesar los logs de `performance_collector` y los logs de aplicación.
+        - **`reliability_analyzer.py`:** Calcula Tasa de Entrega Exitosa ((mensajes_confirmados_NAP / mensajes_enviados_NAP) * 100 o (mensajes_recibidos_CMR / mensajes_enviados_NAP) * 100).
+        - **`latency_analyzer.py`:** Calcula Latencia End-to-End (`ack_receive_time` - `capture_time`). Distribución de latencias.
+        - **`throughput_analyzer.py`:** Calcula Throughput Efectivo (total_datos_utiles_recibidos_CMR / tiempo_simulacion).
+        - **`s_and_f_analyzer.py`:** Analiza el comportamiento de la cola en el NAP (tamaño máx/promedio, tiempo en cola).
+    - **`reports/performance_reporter.py`:**
+        - **Qué hacer:** Generar reportes visuales y tabulares.
+        - **Cómo:**
+            - Usar `pandas` para manipulación de datos, `matplotlib/seaborn` para gráficos (histogramas de latencia, series temporales de throughput, etc.).
+            - Generar un informe Markdown o HTML (usando Jinja2) comparando TCP vs RUDP bajo diferentes escenarios.
+- **Pruebas Sistemáticas (Detalle):**
+    - **Línea Base:** Red ideal (alta BW, baja latencia, 0 pérdida).
+    - **Variación de Ancho de Banda:** Escalonado desde 56 Kbps hasta 2 Mbps.
+    - **Variación de Latencia:** Desde 100ms hasta 2000ms.
+    - **Variación de Pérdida de Paquetes:** Desde 0% hasta 25%.
+    - **Simulación de Intermitencia:**
+        - Cortes cortos y frecuentes (e.g., 10s abajo, 60s arriba).
+        - Cortes largos y esporádicos (e.g., 5min abajo, 30min arriba).
+    - **Combinaciones:** Escenarios realistas combinando varios factores (e.g., baja BW + alta latencia + pérdida moderada).
+    - **Pruebas de Carga:** Múltiples NAPs enviando datos concurrentemente.
+    - **Pruebas de Prioridad:** Verificar que los datos críticos se procesan y transmiten antes.
+- **Entregables Fase 4:** Entorno de simulación funcional, scripts para ejecutar escenarios, scripts de análisis de métricas y un informe preliminar de rendimiento comparativo.
+
+---
+### Fase 5: Análisis de Resultados y Documentación Final
+- **Objetivo:** Consolidar hallazgos, generar documentación completa y recomendaciones.
+- **1. Análisis de Resultados (Profundización)**
+    - **Comparación TCP vs. UDP Confiable (RUDP):**
+        - **Métricas Clave:** Tasa de entrega, latencia E2E, throughput efectivo, sobrecarga de protocolo (bytes de control / bytes de datos), tiempo de recuperación tras interrupción.
+        - **Análisis:** ¿En qué umbrales de pérdida/latencia/intermitencia RUDP supera a TCP? ¿Cuál es el costo en términos de complejidad y sobrecarga? ¿Cómo se comporta el control de congestión de RUDP (si se implementó uno sofisticado) vs el de TCP?
+    - **Validación del Store-and-Forward (S&F):**
+        - **Métricas Clave:** Tiempo promedio en cola (NAP), tamaño máximo de cola, tasa de descarte por llenado de cola (si aplica), impacto de la priorización en el tiempo de entrega de datos críticos.
+        - **Análisis:** ¿Es la capacidad de almacenamiento del NAP (SQLite) suficiente para los escenarios de intermitencia prolongada? ¿Qué tan efectiva es la lógica de reintento y backoff?
+    - **Impacto de la Compresión:**
+        - **Métricas Clave:** Ratio de compresión por tipo de dato, reducción en el tiempo de transmisión.
+        - **Análisis:** ¿El overhead de CPU para comprimir/descomprimir es aceptable en dispositivos NAP de bajos recursos?
+- **2. Documentación Final (`docs/`)**
+    - **`README.md`:** Guía de inicio rápido, cómo clonar, configurar entorno, ejecutar pruebas básicas.
+    - **`architecture.md`:**
+        - Diagramas de arquitectura (C4 si es posible: Contexto, Contenedores, Componentes).
+        - Descripción detallada de NAP, CMR, `shared_libs`.
+        - Flujo de datos para escenarios clave.
+        - Decisiones de diseño y justificaciones.
+    - **`deployment_guide.md`:**
+        - Cómo desplegar NAP y CMR usando Docker.
+        - Configuraciones de ejemplo para producción (variables de entorno, gestión de secretos).
+        - Requisitos de infraestructura.
+    - **`protocol_specification.md`:**
+        - Detalles del formato de `MedicalDataPayload`, `ControlMessage`.
+        - Especificación del `ReliableUDPPacket` (campos, flags, handshake, cierre).
+        - Lógica del Store-and-Forward.
+    - **`simulation_environment.md`:**
+        - Cómo usar el simulador de Mininet.
+        - Cómo definir nuevos escenarios y perfiles de red.
+    - **`performance_analysis.md`:** Informe final de rendimiento con todos los gráficos, tablas y análisis detallados.
+    - **`api_reference.md`:** Documentación de la API REST del CMR (generada con Swagger/OpenAPI desde FastAPI).
+    - **`developer_guide.md`:** Cómo contribuir al código, estándares de codificación, cómo ejecutar tests.
+    - **`regulatory_compliance.md`:**
+        - Análisis de Ley Estatutaria 1751 de 2015 (derecho a la salud).
+        - Ley 1419 de 2010 y Resolución 2654 de 2019 (telesalud y telemedicina).
+        - Ley 1581 de 2012 (protección de datos personales - Habeas Data): Implicaciones para el cifrado, anonimización, consentimiento informado, almacenamiento seguro.
+        - Considerar estándares como HL7 FHIR para interoperabilidad futura.
+    - **`future_work.md`:** Mejoras, optimizaciones, nuevas funcionalidades (e.g., IA para pre-diagnóstico, integración HIS completa, app móvil para NAP).
+- **Entregables Fase 5:** Documentación técnica completa y exhaustiva, análisis final de rendimiento y recomendaciones para futuras implementaciones o mejoras. Código fuente finalizado y probado.
+
